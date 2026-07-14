@@ -6,14 +6,14 @@
 <title>Contabilidad de la Obra</title>
 <style>
   :root {
-    --bg: #f4f1ec;
+    --bg: #f7f5fb;
     --card: #ffffff;
-    --ink: #2b2b2b;
-    --muted: #8a8578;
-    --accent: #b05730;
-    --green: #3d7a4a;
-    --red: #b03030;
-    --border: #e3ded4;
+    --ink: #4a4453;
+    --muted: #a09aae;
+    --accent: #a292d6;
+    --green: #6faa8b;
+    --red: #d98c8c;
+    --border: #e9e4f2;
     --radius: 14px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -65,9 +65,9 @@
     padding: 8px 10px;
     border-radius: 8px;
     font-size: .9rem;
-    background: #f0ede6;
+    background: #f1edf8;
   }
-  .saldo.ok { background: #e8f2ea; color: var(--green); }
+  .saldo.ok { background: #ddf0e4; color: var(--green); }
 
   /* ---- Formulario ---- */
   form { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
@@ -79,7 +79,7 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     font-size: .95rem;
-    background: #fbfaf7;
+    background: #fcfbfe;
     width: 100%;
   }
   input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
@@ -130,11 +130,11 @@
     border-radius: 20px;
     white-space: nowrap;
   }
-  .pill.ars { background: #e4ecf5; color: #2c5a8c; }
-  .pill.usd { background: #e8f2ea; color: var(--green); }
-  .pill.fede { background: #f5e9e0; color: var(--accent); }
-  .pill.viejos { background: #ece6f2; color: #6a4a8c; }
-  .pill.cat { background: #f0ede6; color: #6b6552; }
+  .pill.ars { background: #dfeafa; color: #6a8fc4; }
+  .pill.usd { background: #ddf0e4; color: #5f9a78; }
+  .pill.fede { background: #fbe4ef; color: #c77ba4; }
+  .pill.viejos { background: #e8e2f7; color: #8a76c2; }
+  .pill.cat { background: #f6f0e4; color: #ab9c76; }
   .notas-txt { color: var(--muted); font-size: .8rem; }
   button.borrar, button.editar {
     background: none;
@@ -146,7 +146,7 @@
     border-radius: 6px;
   }
   button.borrar:hover { color: var(--red); background: #f7ecec; }
-  button.editar:hover { color: var(--accent); background: #f5e9e0; }
+  button.editar:hover { color: var(--accent); background: #f1edf8; }
   button.secundario {
     background: none;
     border: 1px solid var(--border);
@@ -180,9 +180,9 @@
   #vistaGraficos canvas { max-height: 320px; }
   .hint { color: var(--muted); font-size: .8rem; text-align: center; margin-bottom: 16px; }
   .error-box {
-    background: #f7ecec;
-    color: var(--red);
-    border: 1px solid #e5c9c9;
+    background: #fbeaea;
+    color: #c47272;
+    border: 1px solid #f0d4d4;
     border-radius: 8px;
     padding: 10px 14px;
     margin-bottom: 16px;
@@ -397,7 +397,7 @@ document.querySelectorAll(".tab").forEach((t) => {
 // --- Gráficos ---
 let charts = {};
 const CATS = ["Materiales", "Mano de Obra", "Servicios", "Expensas", "Comisiones", "Otros"];
-const COLORES = ["#b05730", "#2c5a8c", "#3d7a4a", "#8c6d2c", "#6a4a8c", "#8a8578"];
+const COLORES = ["#f4b8a0", "#a8c4e8", "#a8dcbe", "#f5dfa2", "#cdb6ea", "#e3dccf"];
 
 function renderGraficos() {
   for (const k in charts) charts[k].destroy();
@@ -418,8 +418,8 @@ function renderGraficos() {
     data: {
       labels: fechas.map((f) => f.split("-").reverse().join("/")),
       datasets: [
-        { label: "ARS", data: dataARS, borderColor: "#2c5a8c", backgroundColor: "#2c5a8c22", fill: true, tension: 0.25, yAxisID: "yARS" },
-        { label: "USD", data: dataUSD, borderColor: "#3d7a4a", backgroundColor: "#3d7a4a22", fill: true, tension: 0.25, yAxisID: "yUSD" },
+        { label: "ARS", data: dataARS, borderColor: "#a8c4e8", backgroundColor: "#a8c4e833", fill: true, tension: 0.25, yAxisID: "yARS" },
+        { label: "USD", data: dataUSD, borderColor: "#a8dcbe", backgroundColor: "#a8dcbe33", fill: true, tension: 0.25, yAxisID: "yUSD" },
       ],
     },
     options: {
