@@ -136,7 +136,7 @@
   .pill.viejos { background: #ece6f2; color: #6a4a8c; }
   .pill.cat { background: #f0ede6; color: #6b6552; }
   .notas-txt { color: var(--muted); font-size: .8rem; }
-  button.borrar {
+  button.borrar, button.editar {
     background: none;
     border: none;
     color: var(--muted);
@@ -146,8 +146,39 @@
     border-radius: 6px;
   }
   button.borrar:hover { color: var(--red); background: #f7ecec; }
+  button.editar:hover { color: var(--accent); background: #f5e9e0; }
+  button.secundario {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 10px;
+    border-radius: 8px;
+    font-size: .9rem;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  button.secundario:hover { border-color: var(--accent); color: var(--accent); }
 
   .estado { text-align: center; color: var(--muted); padding: 20px; font-size: .9rem; }
+
+  /* ---- Solapas y gráficos ---- */
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: .9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .tab.activa { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .pies { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) { .pies { grid-template-columns: 1fr; } }
+  .titulo-grafico { font-size: 1rem; margin-bottom: 10px; }
+  #vistaGraficos canvas { max-height: 320px; }
+  .hint { color: var(--muted); font-size: .8rem; text-align: center; margin-bottom: 16px; }
   .error-box {
     background: #f7ecec;
     color: var(--red);
@@ -166,6 +197,13 @@
 <p class="subtitle">Departamento — gastos compartidos 50/50 entre Fechu y A y G</p>
 
 <div class="error-box" id="errorBox"></div>
+
+<div class="tabs">
+  <button class="tab activa" data-vista="gastos">📋 Gastos</button>
+  <button class="tab" data-vista="graficos">📊 Gráficos</button>
+</div>
+
+<div id="vistaGastos">
 
 <!-- ============ RESUMEN ============ -->
 <div class="card">
@@ -234,6 +272,7 @@
     <div class="campo boton">
       <label>&nbsp;</label>
       <button type="submit" class="principal" id="btnAgregar">＋ Agregar gasto</button>
+      <button type="button" class="secundario" id="btnCancelar" style="display:none">Cancelar edición</button>
     </div>
   </form>
 </div>
@@ -259,6 +298,28 @@
   <div class="estado" id="estado">Cargando…</div>
 </div>
 
+</div><!-- /vistaGastos -->
+
+<!-- ============ GRÁFICOS ============ -->
+<div id="vistaGraficos" style="display:none">
+  <div class="card">
+    <h2 class="titulo-grafico">📈 Gasto acumulado en el tiempo</h2>
+    <canvas id="chartAcumulado"></canvas>
+  </div>
+  <div class="pies">
+    <div class="card">
+      <h2 class="titulo-grafico">🥧 Por categoría — Pesos (ARS)</h2>
+      <canvas id="pieARS"></canvas>
+    </div>
+    <div class="card">
+      <h2 class="titulo-grafico">🥧 Por categoría — Dólares (USD)</h2>
+      <canvas id="pieUSD"></canvas>
+    </div>
+  </div>
+  <p class="hint">Tocá una categoría en la leyenda para incluirla o excluirla — los porcentajes se recalculan solos.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script type="module">
 /* ================================================================
    CONFIGURACIÓN — datos del proyecto Supabase
@@ -296,6 +357,17 @@ $("fecha").value = new Date(hoy.getTime() - hoy.getTimezoneOffset() * 60000)
   .toISOString().slice(0, 10);
 
 let gastos = [];
+let editandoId = null;
+
+function salirEdicion() {
+  editandoId = null;
+  $("btnAgregar").textContent = "＋ Agregar gasto";
+  $("btnCancelar").style.display = "none";
+  $("formGasto").reset();
+  const ahora = new Date();
+  $("fecha").value = new Date(ahora.getTime() - ahora.getTimezoneOffset() * 60000)
+    .toISOString().slice(0, 10);
+}
 
 async function cargar() {
   const { data, error } = await supabase
@@ -307,6 +379,93 @@ async function cargar() {
   errorBox.style.display = "none";
   gastos = data;
   render();
+  if ($("vistaGraficos").style.display !== "none") renderGraficos();
+}
+
+// --- Solapas ---
+document.querySelectorAll(".tab").forEach((t) => {
+  t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((x) => x.classList.remove("activa"));
+    t.classList.add("activa");
+    const esGraficos = t.dataset.vista === "graficos";
+    $("vistaGastos").style.display = esGraficos ? "none" : "block";
+    $("vistaGraficos").style.display = esGraficos ? "block" : "none";
+    if (esGraficos) renderGraficos();
+  });
+});
+
+// --- Gráficos ---
+let charts = {};
+const CATS = ["Materiales", "Mano de Obra", "Servicios", "Expensas", "Comisiones", "Otros"];
+const COLORES = ["#b05730", "#2c5a8c", "#3d7a4a", "#8c6d2c", "#6a4a8c", "#8a8578"];
+
+function renderGraficos() {
+  for (const k in charts) charts[k].destroy();
+  charts = {};
+
+  // -- Acumulado en el tiempo (doble eje: ARS izquierda, USD derecha) --
+  const fechas = [...new Set(gastos.map((g) => g.fecha))].sort();
+  let accARS = 0, accUSD = 0;
+  const dataARS = [], dataUSD = [];
+  for (const f of fechas) {
+    accARS += suma(gastos.filter((g) => g.fecha === f && g.moneda === "ARS"));
+    accUSD += suma(gastos.filter((g) => g.fecha === f && g.moneda === "USD"));
+    dataARS.push(accARS);
+    dataUSD.push(accUSD);
+  }
+  charts.acum = new Chart($("chartAcumulado"), {
+    type: "line",
+    data: {
+      labels: fechas.map((f) => f.split("-").reverse().join("/")),
+      datasets: [
+        { label: "ARS", data: dataARS, borderColor: "#2c5a8c", backgroundColor: "#2c5a8c22", fill: true, tension: 0.25, yAxisID: "yARS" },
+        { label: "USD", data: dataUSD, borderColor: "#3d7a4a", backgroundColor: "#3d7a4a22", fill: true, tension: 0.25, yAxisID: "yUSD" },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        tooltip: {
+          callbacks: { label: (c) => ` ${c.dataset.label}: ${fmt[c.dataset.label].format(c.parsed.y)}` },
+        },
+      },
+      scales: {
+        yARS: { position: "left", beginAtZero: true, title: { display: true, text: "ARS" } },
+        yUSD: { position: "right", beginAtZero: true, title: { display: true, text: "USD" }, grid: { drawOnChartArea: false } },
+      },
+    },
+  });
+
+  // -- Tortas por categoría (una por moneda) --
+  for (const m of ["ARS", "USD"]) {
+    const deMoneda = gastos.filter((g) => g.moneda === m);
+    const labels = [], data = [], colores = [];
+    CATS.forEach((c, i) => {
+      const tot = suma(deMoneda.filter((g) => (g.categoria || "Otros") === c));
+      if (tot > 0) { labels.push(c); data.push(tot); colores.push(COLORES[i]); }
+    });
+    charts["pie" + m] = new Chart($("pie" + m), {
+      type: "pie",
+      data: { labels, datasets: [{ data, backgroundColor: colores }] },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: "bottom" },
+          tooltip: {
+            callbacks: {
+              label: (c) => {
+                const totalVisible = c.dataset.data.reduce(
+                  (acc, v, i) => acc + (c.chart.getDataVisibility(i) ? Number(v) : 0), 0);
+                const pct = totalVisible ? ((c.parsed / totalVisible) * 100).toFixed(1) : "0";
+                return ` ${fmt[m].format(c.parsed)} (${pct}%)`;
+              },
+            },
+          },
+        },
+      },
+    });
+  }
 }
 
 function render() {
@@ -324,7 +483,7 @@ function render() {
       <td class="num">${fmt[g.moneda].format(g.monto)}</td>
       <td><span class="pill ${g.moneda.toLowerCase()}">${g.moneda}</span></td>
       <td><span class="pill ${g.pagador === "Fede" ? "fede" : "viejos"}">${g.pagador === "Fede" ? "Fechu" : "A y G"}</span></td>
-      <td><button class="borrar" title="Borrar" data-id="${g.id}">✕</button></td>`;
+      <td style="white-space:nowrap"><button class="editar" title="Editar" data-id="${g.id}">✎</button><button class="borrar" title="Borrar" data-id="${g.id}">✕</button></td>`;
     cuerpo.appendChild(tr);
   }
   $("estado").textContent = gastos.length ? "" : "Todavía no hay gastos cargados.";
@@ -379,23 +538,45 @@ $("formGasto").addEventListener("submit", async (e) => {
     pagador: $("pagador").value,
     notas: $("notas").value.trim() || null,
   };
-  const { error } = await supabase.from("gastos").insert(nuevo);
+  const { error } = editandoId
+    ? await supabase.from("gastos").update(nuevo).eq("id", editandoId)
+    : await supabase.from("gastos").insert(nuevo);
   btn.disabled = false;
   if (error) { mostrarError("No pude guardar el gasto: " + error.message); return; }
-  $("concepto").value = "";
-  $("monto").value = "";
-  $("notas").value = "";
+  salirEdicion();
   $("concepto").focus();
   cargar();
 });
 
-// --- Borrar gasto ---
+// --- Cancelar edición ---
+$("btnCancelar").addEventListener("click", salirEdicion);
+
+// --- Editar / borrar gasto ---
 $("cuerpoTabla").addEventListener("click", async (e) => {
-  const btn = e.target.closest("button.borrar");
-  if (!btn) return;
+  const btnEditar = e.target.closest("button.editar");
+  if (btnEditar) {
+    const g = gastos.find((x) => x.id === btnEditar.dataset.id);
+    if (!g) return;
+    $("fecha").value = g.fecha;
+    $("concepto").value = g.concepto;
+    if (g.categoria) $("categoria").value = g.categoria;
+    $("monto").value = g.monto;
+    $("moneda").value = g.moneda;
+    $("pagador").value = g.pagador;
+    $("notas").value = g.notas || "";
+    editandoId = g.id;
+    $("btnAgregar").textContent = "💾 Guardar cambios";
+    $("btnCancelar").style.display = "block";
+    $("formGasto").scrollIntoView({ behavior: "smooth" });
+    $("concepto").focus();
+    return;
+  }
+  const btnBorrar = e.target.closest("button.borrar");
+  if (!btnBorrar) return;
   if (!confirm("¿Borrar este gasto?")) return;
-  const { error } = await supabase.from("gastos").delete().eq("id", btn.dataset.id);
+  const { error } = await supabase.from("gastos").delete().eq("id", btnBorrar.dataset.id);
   if (error) { mostrarError("No pude borrar: " + error.message); return; }
+  if (editandoId === btnBorrar.dataset.id) salirEdicion();
   cargar();
 });
 
