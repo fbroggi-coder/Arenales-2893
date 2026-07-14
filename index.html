@@ -85,13 +85,14 @@
   input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   .campo.fecha { grid-column: span 2; }
   .campo.concepto { grid-column: span 4; }
+  .campo.categoria { grid-column: span 2; }
   .campo.monto { grid-column: span 2; }
   .campo.moneda { grid-column: span 2; }
   .campo.pagador { grid-column: span 2; }
-  .campo.notas { grid-column: span 4; }
+  .campo.notas { grid-column: span 2; }
   .campo.boton { grid-column: span 2; justify-content: flex-end; }
   @media (max-width: 600px) {
-    .campo.fecha, .campo.concepto, .campo.monto, .campo.moneda,
+    .campo.fecha, .campo.concepto, .campo.categoria, .campo.monto, .campo.moneda,
     .campo.pagador, .campo.notas, .campo.boton { grid-column: span 2; }
   }
   button.principal {
@@ -133,6 +134,7 @@
   .pill.usd { background: #e8f2ea; color: var(--green); }
   .pill.fede { background: #f5e9e0; color: var(--accent); }
   .pill.viejos { background: #ece6f2; color: #6a4a8c; }
+  .pill.cat { background: #f0ede6; color: #6b6552; }
   .notas-txt { color: var(--muted); font-size: .8rem; }
   button.borrar {
     background: none;
@@ -161,7 +163,7 @@
 <body>
 
 <h1>🏗️ Contabilidad de la Obra</h1>
-<p class="subtitle">Departamento — gastos compartidos 50/50 entre Fede y los viejos</p>
+<p class="subtitle">Departamento — gastos compartidos 50/50 entre Fechu y A y G</p>
 
 <div class="error-box" id="errorBox"></div>
 
@@ -170,15 +172,15 @@
   <div class="resumen-grid">
     <div class="moneda-box">
       <h2>Pesos <span class="badge">ARS</span></h2>
-      <div class="fila"><span class="label">Pagó Fede</span><span id="arsFede">—</span></div>
-      <div class="fila"><span class="label">Pagaron los viejos</span><span id="arsViejos">—</span></div>
+      <div class="fila"><span class="label">Pagó Fechu</span><span id="arsFede">—</span></div>
+      <div class="fila"><span class="label">Pagaron A y G</span><span id="arsViejos">—</span></div>
       <div class="fila total"><span>Total</span><span id="arsTotal">—</span></div>
       <div class="saldo" id="arsSaldo">—</div>
     </div>
     <div class="moneda-box">
       <h2>Dólares <span class="badge">USD</span></h2>
-      <div class="fila"><span class="label">Pagó Fede</span><span id="usdFede">—</span></div>
-      <div class="fila"><span class="label">Pagaron los viejos</span><span id="usdViejos">—</span></div>
+      <div class="fila"><span class="label">Pagó Fechu</span><span id="usdFede">—</span></div>
+      <div class="fila"><span class="label">Pagaron A y G</span><span id="usdViejos">—</span></div>
       <div class="fila total"><span>Total</span><span id="usdTotal">—</span></div>
       <div class="saldo" id="usdSaldo">—</div>
     </div>
@@ -196,6 +198,17 @@
       <label for="concepto">Concepto</label>
       <input type="text" id="concepto" placeholder="Ej: Materiales, plomero, pintura…" required>
     </div>
+    <div class="campo categoria">
+      <label for="categoria">Categoría</label>
+      <select id="categoria" required>
+        <option value="Materiales">Materiales</option>
+        <option value="Mano de Obra">Mano de Obra</option>
+        <option value="Servicios">Servicios</option>
+        <option value="Expensas">Expensas</option>
+        <option value="Comisiones">Comisiones</option>
+        <option value="Otros">Otros</option>
+      </select>
+    </div>
     <div class="campo monto">
       <label for="monto">Monto</label>
       <input type="number" id="monto" min="0.01" step="0.01" placeholder="0.00" required>
@@ -210,8 +223,8 @@
     <div class="campo pagador">
       <label for="pagador">Pagó</label>
       <select id="pagador">
-        <option value="Fede">Fede</option>
-        <option value="Viejos">Los viejos</option>
+        <option value="Fede">Fechu</option>
+        <option value="Viejos">A y G</option>
       </select>
     </div>
     <div class="campo notas">
@@ -233,6 +246,7 @@
         <tr>
           <th>Fecha</th>
           <th>Concepto</th>
+          <th>Categoría</th>
           <th class="num">Monto</th>
           <th>Moneda</th>
           <th>Pagó</th>
@@ -306,9 +320,10 @@ function render() {
     tr.innerHTML = `
       <td style="white-space:nowrap">${fecha}</td>
       <td>${escapar(g.concepto)}${notas}</td>
+      <td>${g.categoria ? `<span class="pill cat">${escapar(g.categoria)}</span>` : "—"}</td>
       <td class="num">${fmt[g.moneda].format(g.monto)}</td>
       <td><span class="pill ${g.moneda.toLowerCase()}">${g.moneda}</span></td>
-      <td><span class="pill ${g.pagador === "Fede" ? "fede" : "viejos"}">${g.pagador === "Fede" ? "Fede" : "Los viejos"}</span></td>
+      <td><span class="pill ${g.pagador === "Fede" ? "fede" : "viejos"}">${g.pagador === "Fede" ? "Fechu" : "A y G"}</span></td>
       <td><button class="borrar" title="Borrar" data-id="${g.id}">✕</button></td>`;
     cuerpo.appendChild(tr);
   }
@@ -333,10 +348,10 @@ function render() {
       saldoEl.textContent = "✔ Están a mano";
       saldoEl.className = "saldo ok";
     } else if (dif > 0) {
-      saldoEl.textContent = `Los viejos le deben a Fede ${fmt[m].format(dif)}`;
+      saldoEl.textContent = `A y G le deben a Fechu ${fmt[m].format(dif)}`;
       saldoEl.className = "saldo";
     } else {
-      saldoEl.textContent = `Fede les debe a los viejos ${fmt[m].format(-dif)}`;
+      saldoEl.textContent = `Fechu les debe a A y G ${fmt[m].format(-dif)}`;
       saldoEl.className = "saldo";
     }
   }
@@ -358,6 +373,7 @@ $("formGasto").addEventListener("submit", async (e) => {
   const nuevo = {
     fecha: $("fecha").value,
     concepto: $("concepto").value.trim(),
+    categoria: $("categoria").value,
     monto: Number($("monto").value),
     moneda: $("moneda").value,
     pagador: $("pagador").value,
